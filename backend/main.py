@@ -1,11 +1,15 @@
 from datetime import datetime
 from typing import List, Optional
+from pathlib import Path
 import json
 import random
+import shutil
+import uuid
 
-from fastapi import Depends, FastAPI
+from fastapi import Depends, FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel, Field
 from sqlmodel import Session, select
 
 from database import create_db_and_tables, get_session
@@ -15,9 +19,21 @@ from models import EatHistory
 app = FastAPI(title="今天吃啥 API")
 
 
+UPLOAD_ROOT = Path("uploads")
+MENU_IMAGE_DIR = UPLOAD_ROOT / "menu_images"
+MENU_IMAGE_DIR.mkdir(parents=True, exist_ok=True)
+
+app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
+
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+    allow_origins=[
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "http://localhost:5174",
+        "http://127.0.0.1:5174",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -50,7 +66,7 @@ class SaveHistoryRequest(BaseModel):
     mode: str
     reason: str
     score: Optional[int] = None
-    feedback: List[str] = []
+    feedback: List[str] = Field(default_factory=list)
 
 
 def analyze_dish_name(name: str):
@@ -275,3 +291,34 @@ def clear_history(session: Session = Depends(get_session)):
     session.commit()
 
     return {"message": "历史记录已清空"}
+
+
+@app.post("/api/menu/upload")
+async def upload_menu_image(file: UploadFile = File(...)):
+    if not file.content_type or not file.content_type.startswith("image/"):
+        raise HTTPException(status_code=400, detail="请上传图片文件")
+
+    original_suffix = Path(file.filename or "").suffix.lower()
+    allowed_suffixes = [".jpg", ".jpeg", ".png", ".webp", ".bmp"]
+
+    if original_suffix not in allowed_suffixes:
+        original_suffix = ".jpg"
+
+    stored_name = f"{uuid.uuid4().hex}{original_suffix}"
+    save_path = MENU_IMAGE_DIR / stored_name
+
+    try:
+        with save_path.open("wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+    finally:
+        file.file.close()
+
+    image_url = f"/uploads/menu_images/{stored_name}"
+
+    return {
+        "message": "菜单图片上传成功",
+        "originalName": file.filename,
+        "storedName": stored_name,
+        "url": image_url,
+        "fullUrl": f"http://127.0.0.1:8000{image_url}",
+    }

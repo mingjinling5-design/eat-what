@@ -1,12 +1,22 @@
 import { useEffect, useMemo, useState } from "react";
 import { loadMenu, saveMenu } from "../lib/storage";
 
+type UploadResult = {
+  message: string;
+  originalName: string;
+  storedName: string;
+  url: string;
+  fullUrl: string;
+};
+
 function Menu() {
   const [menuText, setMenuText] = useState(() => loadMenu());
   const [message, setMessage] = useState("");
   const [imagePreview, setImagePreview] = useState("");
   const [imageName, setImageName] = useState("");
   const [imageSize, setImageSize] = useState("");
+  const [uploading, setUploading] = useState(false);
+  const [uploadResult, setUploadResult] = useState<UploadResult | null>(null);
 
   const menuList = useMemo(() => {
     return menuText
@@ -42,7 +52,7 @@ function Menu() {
     showMessage("菜单已清空。");
   };
 
-  const handleImageUpload = (file?: File) => {
+  const handleImageUpload = async (file?: File) => {
     if (!file) {
       return;
     }
@@ -62,8 +72,31 @@ function Menu() {
     setImagePreview(previewUrl);
     setImageName(file.name);
     setImageSize(`${sizeMB.toFixed(2)} MB`);
+    setUploadResult(null);
 
-    showMessage("菜单图片已上传，可以在右侧预览。");
+    const formData = new FormData();
+    formData.append("file", file);
+
+    setUploading(true);
+
+    try {
+      const response = await fetch("http://127.0.0.1:8000/api/menu/upload", {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!response.ok) {
+        throw new Error("上传失败");
+      }
+
+      const data: UploadResult = await response.json();
+      setUploadResult(data);
+      showMessage("菜单图片已上传到后端。");
+    } catch {
+      showMessage("图片已预览，但后端上传失败。请确认 FastAPI 已启动。");
+    } finally {
+      setUploading(false);
+    }
   };
 
   const removeImage = () => {
@@ -74,10 +107,11 @@ function Menu() {
     setImagePreview("");
     setImageName("");
     setImageSize("");
+    setUploadResult(null);
     showMessage("图片预览已移除。");
   };
 
-  const appendDemoRecognizedText = () => {
+  const appendExampleMenu = () => {
     const demoText = [
       "番茄鸡蛋盖饭",
       "青椒肉丝盖饭",
@@ -92,7 +126,8 @@ function Menu() {
       : demoText;
 
     setMenuText(nextText);
-    showMessage("已加入示例识别结果。后面会替换成真实 OCR。");
+    saveMenu(nextText);
+    showMessage("已加入示例菜单。");
   };
 
   return (
@@ -120,6 +155,7 @@ function Menu() {
             <button className="primary-btn" onClick={handleSave}>
               保存今日菜单
             </button>
+
             <button className="outline-btn" onClick={handleClear}>
               清空菜单
             </button>
@@ -132,7 +168,7 @@ function Menu() {
               <p className="section-kicker">Step 02</p>
               <h2>上传菜单图片</h2>
             </div>
-            <span className="pill">Preview</span>
+            <span className="pill">{uploading ? "Uploading" : "Preview"}</span>
           </div>
 
           <label className="upload-box">
@@ -146,7 +182,10 @@ function Menu() {
               <div className="upload-empty">
                 <span>📷</span>
                 <strong>点击上传菜单图片</strong>
-                <p>支持 jpg、png、webp。当前阶段先做图片预览，下一步接 OCR 识别。</p>
+                <p>
+                  支持 jpg、png、webp。当前版本只做图片预览和后端保存，
+                  菜名请在左侧手动输入。
+                </p>
               </div>
             ) : (
               <img src={imagePreview} alt="菜单图片预览" />
@@ -157,7 +196,25 @@ function Menu() {
             <div className="image-info">
               <div>
                 <strong>{imageName}</strong>
-                <p>{imageSize}</p>
+
+                <p>
+                  {imageSize}
+                  {uploading ? " · 正在上传到后端..." : ""}
+                </p>
+
+                {uploadResult && (
+                  <p>
+                    后端已保存：
+                    <a
+                      href={uploadResult.fullUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-link"
+                    >
+                      查看图片
+                    </a>
+                  </p>
+                )}
               </div>
 
               <button className="outline-btn" onClick={removeImage}>
@@ -167,14 +224,16 @@ function Menu() {
           )}
 
           <div className="ocr-placeholder">
-            <p className="section-kicker">OCR Result</p>
-            <h3>识别结果区域</h3>
+            <p className="section-kicker">Manual Input</p>
+            <h3>看图手动录入</h3>
+
             <p className="muted">
-              后面接入 OCR 后，图片里的菜名会自动显示在这里。你可以手动修改后保存为今日菜单。
+              当前版本先去掉 OCR。你可以看着上传的菜单图片，把菜名手动输入到左侧。
+              这样系统更稳定，也更适合作为第一版体验版。
             </p>
 
-            <button className="outline-wide" onClick={appendDemoRecognizedText}>
-              先加入一组示例识别结果
+            <button className="outline-wide" onClick={appendExampleMenu}>
+              加入一组示例菜单
             </button>
           </div>
         </div>
@@ -186,7 +245,7 @@ function Menu() {
           <h3>菜单预览</h3>
 
           {menuList.length === 0 ? (
-            <p className="muted">暂无菜单，请先输入或等待 OCR 识别结果。</p>
+            <p className="muted">暂无菜单，请先输入菜名。</p>
           ) : (
             <div className="chip-list">
               {menuList.map((item, index) => (
@@ -201,8 +260,10 @@ function Menu() {
         <div className="section-card soft">
           <p className="section-kicker">Next</p>
           <h3>后续扩展</h3>
+
           <p className="muted">
-            下一步可以接后端图片上传接口，再接 PaddleOCR 或其他 OCR 工具，把菜单图片自动转换成菜名文本。
+            后期如果需要，可以改为接入更稳定的付费识图 API，
+            或者做成“AI 帮我从图片里提取菜单”。
           </p>
         </div>
       </div>

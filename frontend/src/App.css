@@ -771,95 +771,7 @@ input[type="checkbox"] {
   box-shadow: var(--shadow);
 }
 
-@media (max-width: 1080px) {
-  .app-layout {
-    grid-template-columns: 1fr;
-  }
-
-  .sidebar {
-    position: static;
-    height: auto;
-    border-right: none;
-    border-bottom: 1px solid var(--hairline);
-  }
-
-  .side-nav {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-
-  .sidebar-card {
-    display: none;
-  }
-
-  .home-hero,
-  .recommend-layout,
-  .split-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .feature-grid,
-  .admin-grid,
-  .history-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-
-@media (max-width: 680px) {
-  .main-area {
-    padding: 18px;
-  }
-
-  .sidebar {
-    padding: 18px;
-  }
-
-  .side-nav {
-    grid-template-columns: 1fr 1fr;
-  }
-
-  .topbar {
-    align-items: flex-start;
-    flex-direction: column;
-  }
-
-  .home-hero {
-    padding: 28px;
-  }
-
-  .home-hero h2 {
-    font-size: 46px;
-  }
-
-  .feature-grid,
-  .admin-grid,
-  .history-grid,
-  .mode-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .section-head,
-  .setting-row,
-  .switch-row {
-    grid-template-columns: 1fr;
-  }
-
-  .form-actions,
-  .topbar-actions,
-  .hero-actions {
-    width: 100%;
-    flex-direction: column;
-  }
-
-  .primary-btn,
-  .outline-btn,
-  .danger-btn,
-  .primary-large,
-  .secondary-large {
-    width: 100%;
-    justify-content: center;
-    text-align: center;
-  }
-}
+/* 今日菜单图片上传区域 */
 .menu-workspace {
   display: grid;
   grid-template-columns: 1fr 0.9fr;
@@ -963,8 +875,101 @@ input[type="checkbox"] {
   margin-top: 0;
 }
 
+.inline-link {
+  margin-left: 6px;
+  color: var(--primary);
+  font-weight: 800;
+  text-decoration: underline;
+}
+
+/* 响应式 */
 @media (max-width: 1080px) {
+  .app-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .sidebar {
+    position: static;
+    height: auto;
+    border-right: none;
+    border-bottom: 1px solid var(--hairline);
+  }
+
+  .side-nav {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .sidebar-card {
+    display: none;
+  }
+
+  .home-hero,
+  .recommend-layout,
+  .split-grid,
   .menu-workspace {
     grid-template-columns: 1fr;
+  }
+
+  .feature-grid,
+  .admin-grid,
+  .history-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 680px) {
+  .main-area {
+    padding: 18px;
+  }
+
+  .sidebar {
+    padding: 18px;
+  }
+
+  .side-nav {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .topbar {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .home-hero {
+    padding: 28px;
+  }
+
+  .home-hero h2 {
+    font-size: 46px;
+  }
+
+  .feature-grid,
+  .admin-grid,
+  .history-grid,
+  .mode-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .section-head,
+  .setting-row,
+  .switch-row {
+    grid-template-columns: 1fr;
+  }
+
+  .form-actions,
+  .topbar-actions,
+  .hero-actions {
+    width: 100%;
+    flex-direction: column;
+  }
+
+  .primary-btn,
+  .outline-btn,
+  .danger-btn,
+  .primary-large,
+  .secondary-large {
+    width: 100%;
+    justify-content: center;
+    text-align: center;
   }
 }
