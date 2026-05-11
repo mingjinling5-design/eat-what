@@ -1,4 +1,10 @@
+import { useEffect, useState } from "react";
 import { NavLink, Outlet, useLocation } from "react-router";
+import {
+  loadCurrentUser,
+  logoutCurrentUser,
+  type CurrentUser,
+} from "../lib/storage";
 
 const navItems = [
   { to: "/", label: "首页", icon: "🏠" },
@@ -22,6 +28,16 @@ const pageTitleMap: Record<string, string> = {
 function Layout() {
   const location = useLocation();
   const title = pageTitleMap[location.pathname] || "今天吃啥";
+  const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
+
+  useEffect(() => {
+    setCurrentUser(loadCurrentUser());
+  }, [location.pathname]);
+
+  const handleLogout = () => {
+    logoutCurrentUser();
+    setCurrentUser(null);
+  };
 
   return (
     <div className="app-layout">
@@ -65,9 +81,23 @@ function Layout() {
           </div>
 
           <div className="topbar-actions">
-            <NavLink to="/login" className="outline-btn">
-              登录
-            </NavLink>
+            {currentUser ? (
+              <>
+                <span className="user-pill">
+                  {currentUser.isGuest ? "游客" : "用户"}：
+                  {currentUser.username}
+                </span>
+
+                <button className="outline-btn" onClick={handleLogout}>
+                  退出
+                </button>
+              </>
+            ) : (
+              <NavLink to="/login" className="outline-btn">
+                登录
+              </NavLink>
+            )}
+
             <NavLink to="/recommend" className="primary-btn">
               开始推荐
             </NavLink>

@@ -4,6 +4,13 @@ import type { HistoryItem, Preferences } from "../data/appData";
 const MENU_KEY = "eat-what-menu";
 const PREF_KEY = "eat-what-preferences";
 const HISTORY_KEY = "eat-what-history";
+const USER_KEY = "eat-what-current-user";
+
+export type CurrentUser = {
+  id: number;
+  username: string;
+  isGuest: boolean;
+};
 
 export function loadMenu() {
   return localStorage.getItem(MENU_KEY) || defaultMenu;
@@ -60,4 +67,26 @@ export function saveLocalHistory(items: HistoryItem[]) {
 
 export function clearLocalHistory() {
   localStorage.removeItem(HISTORY_KEY);
+}
+
+export function loadCurrentUser(): CurrentUser | null {
+  try {
+    const saved = localStorage.getItem(USER_KEY);
+
+    if (!saved) {
+      return null;
+    }
+
+    return JSON.parse(saved);
+  } catch {
+    return null;
+  }
+}
+
+export function saveCurrentUser(user: CurrentUser) {
+  localStorage.setItem(USER_KEY, JSON.stringify(user));
+}
+
+export function logoutCurrentUser() {
+  localStorage.removeItem(USER_KEY);
 }

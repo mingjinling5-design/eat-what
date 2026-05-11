@@ -11,7 +11,16 @@ class EatHistory(SQLModel, table=True):
     mode: str
     reason: str
     score: Optional[int] = None
-
     feedback: str = "[]"
+
+    created_at: datetime = Field(default_factory=datetime.now)
+
+
+class UserAccount(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+
+    username: str = Field(index=True, unique=True)
+    password_hash: str
+    salt: str
 
     created_at: datetime = Field(default_factory=datetime.now)
