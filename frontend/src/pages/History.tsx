@@ -3,6 +3,7 @@ import { modeMap } from "../data/appData";
 import type { HistoryItem, RecommendMode } from "../data/appData";
 import {
   clearLocalHistory,
+  loadCurrentUser,
   loadLocalHistory,
   saveLocalHistory,
 } from "../lib/storage";
@@ -10,6 +11,9 @@ import {
 function History() {
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [message, setMessage] = useState("");
+
+  const currentUser = loadCurrentUser();
+  const userId = currentUser?.id ?? 0;
 
   const showMessage = (text: string) => {
     setMessage(text);
@@ -21,7 +25,9 @@ function History() {
 
   const loadHistory = async () => {
     try {
-      const response = await fetch("http://127.0.0.1:8000/api/history");
+      const response = await fetch(
+        `http://127.0.0.1:8000/api/history?user_id=${userId}`
+      );
 
       if (!response.ok) {
         throw new Error("读取失败");
@@ -36,14 +42,14 @@ function History() {
   };
 
   const clearHistory = async () => {
-    const ok = confirm("确定清空历史记录吗？");
+    const ok = confirm("确定清空当前用户的历史记录吗？");
 
     if (!ok) {
       return;
     }
 
     try {
-      await fetch("http://127.0.0.1:8000/api/history", {
+      await fetch(`http://127.0.0.1:8000/api/history?user_id=${userId}`, {
         method: "DELETE",
       });
     } catch {
@@ -68,12 +74,19 @@ function History() {
           <div>
             <p className="section-kicker">History</p>
             <h2>最近选择记录</h2>
+
+            {currentUser && (
+              <p className="muted">
+                当前用户：{currentUser.isGuest ? "游客" : currentUser.username}
+              </p>
+            )}
           </div>
 
           <div className="form-actions inline">
             <button className="outline-btn" onClick={loadHistory}>
               刷新
             </button>
+
             <button className="danger-btn" onClick={clearHistory}>
               清空
             </button>

@@ -1,6 +1,8 @@
 from datetime import datetime
-from typing import List, Optional
 from pathlib import Path
+from typing import List, Optional
+import hashlib
+import hmac
 import json
 import random
 import shutil
@@ -12,12 +14,11 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 from sqlmodel import Session, select
 
-from database import create_db_and_tables, get_session
-from models import EatHistory
+from database import create_db_and_tables, migrate_database, get_session
+from models import EatHistory, UserAccount
 
 
 app = FastAPI(title="今天吃啥 API")
-
 
 UPLOAD_ROOT = Path("uploads")
 MENU_IMAGE_DIR = UPLOAD_ROOT / "menu_images"
@@ -28,12 +29,7 @@ app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",
-        "http://127.0.0.1:5173",
-        "http://localhost:5174",
-        "http://127.0.0.1:5174",
-    ],
+    allow_origin_regex=r"http://(localhost|127\.0\.0\.1):\d+",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -43,6 +39,7 @@ app.add_middleware(
 @app.on_event("startup")
 def on_startup():
     create_db_and_tables()
+    migrate_database()
 
 
 class Preference(BaseModel):
@@ -62,11 +59,17 @@ class RecommendRequest(BaseModel):
 
 
 class SaveHistoryRequest(BaseModel):
+    user_id: int = 0
     dish: str
     mode: str
     reason: str
     score: Optional[int] = None
     feedback: List[str] = Field(default_factory=list)
+
+
+class AuthRequest(BaseModel):
+    username: str
+    password: str
 
 
 def analyze_dish_name(name: str):
@@ -212,6 +215,7 @@ def history_to_dict(item: EatHistory):
 
     return {
         "id": str(item.id),
+        "userId": item.user_id,
         "dish": item.dish,
         "mode": item.mode,
         "reason": item.reason,
@@ -221,9 +225,93 @@ def history_to_dict(item: EatHistory):
     }
 
 
+def hash_password(password: str, salt: str):
+    raw = f"{salt}:{password}".encode("utf-8")
+    return hashlib.sha256(raw).hexdigest()
+
+
+def user_to_dict(user: UserAccount):
+    return {
+        "id": user.id,
+        "username": user.username,
+        "isGuest": False,
+        "createdAt": user.created_at.strftime("%Y/%m/%d %H:%M:%S"),
+    }
+
+
 @app.get("/")
 def root():
     return {"message": "今天吃啥后端启动成功"}
+
+
+@app.post("/api/auth/register")
+def register(data: AuthRequest, session: Session = Depends(get_session)):
+    username = data.username.strip()
+    password = data.password.strip()
+
+    if len(username) < 2:
+        raise HTTPException(status_code=400, detail="用户名至少需要 2 个字符")
+
+    if len(password) < 6:
+        raise HTTPException(status_code=400, detail="密码至少需要 6 位")
+
+    statement = select(UserAccount).where(UserAccount.username == username)
+    existing_user = session.exec(statement).first()
+
+    if existing_user:
+        raise HTTPException(status_code=400, detail="用户名已存在")
+
+    salt = uuid.uuid4().hex
+    password_hash = hash_password(password, salt)
+
+    user = UserAccount(
+        username=username,
+        password_hash=password_hash,
+        salt=salt,
+    )
+
+    session.add(user)
+    session.commit()
+    session.refresh(user)
+
+    return {
+        "message": "注册成功",
+        "user": user_to_dict(user),
+    }
+
+
+@app.post("/api/auth/login")
+def login(data: AuthRequest, session: Session = Depends(get_session)):
+    username = data.username.strip()
+    password = data.password.strip()
+
+    statement = select(UserAccount).where(UserAccount.username == username)
+    user = session.exec(statement).first()
+
+    if not user:
+        raise HTTPException(status_code=401, detail="用户名或密码错误")
+
+    input_hash = hash_password(password, user.salt)
+
+    if not hmac.compare_digest(input_hash, user.password_hash):
+        raise HTTPException(status_code=401, detail="用户名或密码错误")
+
+    return {
+        "message": "登录成功",
+        "user": user_to_dict(user),
+    }
+
+
+@app.post("/api/auth/guest")
+def guest_login():
+    return {
+        "message": "游客模式进入成功",
+        "user": {
+            "id": 0,
+            "username": "游客用户",
+            "isGuest": True,
+        },
+    }
 
 
 @app.post("/api/recommend/today")
@@ -255,6 +343,7 @@ def recommend_today(data: RecommendRequest):
 @app.post("/api/history")
 def save_history(data: SaveHistoryRequest, session: Session = Depends(get_session)):
     item = EatHistory(
+        user_id=data.user_id,
         dish=data.dish,
         mode=data.mode,
         reason=data.reason,
@@ -273,16 +362,20 @@ def save_history(data: SaveHistoryRequest, session: Session = Depends(get_sessio
 
 
 @app.get("/api/history")
-def get_history(session: Session = Depends(get_session)):
-    statement = select(EatHistory).order_by(EatHistory.created_at.desc())
+def get_history(user_id: int = 0, session: Session = Depends(get_session)):
+    statement = (
+        select(EatHistory)
+        .where(EatHistory.user_id == user_id)
+        .order_by(EatHistory.created_at.desc())
+    )
     items = session.exec(statement).all()
 
     return [history_to_dict(item) for item in items]
 
 
 @app.delete("/api/history")
-def clear_history(session: Session = Depends(get_session)):
-    statement = select(EatHistory)
+def clear_history(user_id: int = 0, session: Session = Depends(get_session)):
+    statement = select(EatHistory).where(EatHistory.user_id == user_id)
     items = session.exec(statement).all()
 
     for item in items:
@@ -290,7 +383,7 @@ def clear_history(session: Session = Depends(get_session)):
 
     session.commit()
 
-    return {"message": "历史记录已清空"}
+    return {"message": "当前用户历史记录已清空"}
 
 
 @app.post("/api/menu/upload")

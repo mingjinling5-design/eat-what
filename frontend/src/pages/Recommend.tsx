@@ -6,6 +6,7 @@ import type {
   RecommendResult,
 } from "../data/appData";
 import {
+  loadCurrentUser,
   loadLocalHistory,
   loadMenu,
   loadPreferences,
@@ -21,6 +22,7 @@ function Recommend() {
 
   const menuText = loadMenu();
   const preferences = loadPreferences();
+  const currentUser = loadCurrentUser();
 
   const menuList = useMemo(() => {
     return menuText
@@ -113,6 +115,7 @@ function Recommend() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
+          user_id: currentUser?.id ?? 0,
           dish: localItem.dish,
           mode: localItem.mode,
           reason: localItem.reason,
@@ -141,6 +144,7 @@ function Recommend() {
               <p className="section-kicker">Mode</p>
               <h2>选择今天的推荐模式</h2>
             </div>
+
             <span className="pill">{menuList.length} 个候选饭餐</span>
           </div>
 
@@ -201,6 +205,7 @@ function Recommend() {
                 <button className="primary-btn" onClick={handleChoose}>
                   我就吃这个
                 </button>
+
                 <button className="outline-btn" onClick={handleRecommend}>
                   再换一个
                 </button>
